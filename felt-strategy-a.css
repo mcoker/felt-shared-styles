@@ -1,0 +1,36 @@
+/* Strategy A - inner .felt-card element, transparent host */
+
+felt-card-element { display: contents; }   /* host generates no box */
+
+.felt-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 320px;
+  border: 1px solid #d2d2d2;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .12);
+}
+
+.felt-card__header {
+  padding: 12px 16px;
+  font-weight: 600;
+  border-bottom: 1px solid #d2d2d2;
+  background: #f5f5f5;
+}
+.felt-card__body {
+  padding: 16px;
+  flex-grow: 1;            /* <- the flex-grow the demo is about */
+  background: #eaf3ff;     /* tinted so you can see it expand     */
+  line-height: 1.5;
+}
+.felt-card__text { margin: 0 0 12px; }
+.felt-card__note { margin: 0; font-size: .8rem; font-style: italic; }
+.felt-card__footer {
+  padding: 12px 16px;
+  border-top: 1px solid #d2d2d2;
+  background: #f5f5f5;
+  font-size: .85rem;
+  color: #555;
+}

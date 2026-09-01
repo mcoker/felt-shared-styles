@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Felt — shared stylesheet across React &amp; web components</title>
+
+  <!-- Page "chrome" only. This is NOT the shared component stylesheet -
+       the felt card stylesheet is constructed in JS and adopted into the
+       document + each shadow root. -->
+  <style>
+    :root { color-scheme: light; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 24px 28px 48px;
+      color: #151515;
+      background: #fafafa;
+    }
+    h1 { font-size: 1.4rem; margin: 0 0 4px; }
+    .lede { color: #6a6e73; max-width: 900px; margin: 0 0 20px; line-height: 1.5; }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px 24px;
+      align-items: center;
+      padding: 14px 16px;
+      border: 1px solid #d2d2d2;
+      border-radius: 8px;
+      background: #fff;
+      margin-bottom: 8px;
+    }
+    .controls fieldset {
+      border: 0; margin: 0; padding: 0;
+      display: flex; gap: 18px; align-items: center;
+    }
+    .controls legend { font-weight: 600; margin-right: 8px; float: left; }
+    .controls label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+
+    #strategy-desc {
+      max-width: 1000px;
+      line-height: 1.55;
+      color: #3c3f42;
+      margin: 12px 2px 24px;
+    }
+    #strategy-desc code { background: #eee; padding: 1px 5px; border-radius: 4px; font-size: .9em; }
+    #strategy-desc .summary { margin: 0 0 14px; }
+    .pros-cons { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 900px; }
+    .pros-cons h3 { font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; margin: 0 0 8px; }
+    .pros-cons ul { list-style: none; margin: 0; padding: 0; line-height: 1.5; }
+    .pros-cons li { margin: 0 0 6px; padding-left: 1.4em; text-indent: -1.4em; }
+    .pros h3 { color: #3e8635; }
+    .cons h3 { color: #c9190b; }
+    .pros li::before { content: "\2713"; color: #3e8635; font-weight: 700; margin-right: .5em; }
+    .cons li::before { content: "\2717"; color: #c9190b; font-weight: 700; margin-right: .5em; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      align-items: start;
+    }
+    .col > h2 {
+      font-size: .8rem;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: #6a6e73;
+      margin: 0 0 10px;
+    }
+
+    details { margin-top: 12px; }
+    summary { cursor: pointer; font-size: .8rem; color: #0066cc; }
+    pre {
+      background: #1b1d1e;
+      color: #e6e6e6;
+      padding: 12px;
+      border-radius: 6px;
+      overflow: auto;
+      font-size: 12px;
+      line-height: 1.45;
+      margin: 8px 0 0;
+      white-space: pre;
+    }
+    .source-panel { margin-top: 32px; max-width: 1000px; }
+    .source-panel h2 { font-size: .95rem; }
+
+    /* App-level style. This lives in the ROOT PAGE's <style> - NOT in the shared
+       felt stylesheet. It reaches the light DOM (React + the light-DOM web
+       component), but it cannot cross the shadow boundary, so the shadow-DOM
+       card's body is unaffected. */
+    .felt-card__body { color: red; }
+  </style>
+</head>
+<body>
+  <div id="error-banner" style="display:none;background:#c9190b;color:#fff;padding:10px 14px;border-radius:6px;margin-bottom:16px;font-family:monospace;white-space:pre-wrap;"></div>
+
+  <h1>One stylesheet · three renderers</h1>
+  <p class="lede">
+    The same <strong>felt</strong> card — a flex column whose body uses <code>flex-grow: 1</code> to push the
+    footer down — rendered as a native React component, a web component in <strong>shadow DOM</strong>, and a web
+    component in <strong>light DOM</strong>. All three are styled by a single shared stylesheet. Use the toggles to
+    change how the CSS is <strong>authored</strong> (selector strategy) and how it's <strong>delivered</strong>
+    (a <code>&lt;link&gt;</code> + inline <code>&lt;style&gt;</code>, or adopted stylesheets).
+  </p>
+
+  <div class="controls">
+    <fieldset>
+      <legend>Stylesheet strategy</legend>
+      <label><input type="radio" name="variation" value="A" checked> A — inner element + <code>display: contents</code></label>
+      <label><input type="radio" name="variation" value="B"> B — <code>:host(.felt-card), .felt-card</code></label>
+    </fieldset>
+    <fieldset>
+      <legend>Delivery</legend>
+      <label><input type="radio" name="delivery" value="link" checked> <code>&lt;link&gt;</code> in head + inline <code>&lt;style&gt;</code> in shadow</label>
+      <label><input type="radio" name="delivery" value="adopted"> Adopted stylesheets (shared object)</label>
+    </fieldset>
+  </div>
+  <div id="strategy-desc"></div>
+
+  <div class="grid">
+    <div class="col">
+      <h2>React (native)</h2>
+      <div id="react-card"></div>
+    </div>
+
+    <div class="col">
+      <h2>Web component · shadow DOM</h2>
+      <div id="wc-shadow"></div>
+    </div>
+
+    <div class="col">
+      <h2>Web component · light DOM</h2>
+      <div id="wc-light"></div>
+    </div>
+  </div>
+
+  <div class="source-panel">
+    <h2>Active shared stylesheet</h2>
+    <p id="delivery-note" style="color:#3c3f42;line-height:1.5;margin:0 0 8px;"></p>
+    <pre id="css-source"></pre>
+  </div>
+
+  <!-- Surface any load/runtime error on the page (not just the console). -->
+  <script>
+    window.addEventListener("error", function (ev) {
+      var b = document.getElementById("error-banner");
+      if (!b) return;
+      b.style.display = "block";
+      b.textContent = "Error: " + (ev.message || ev.error) +
+        (ev.filename ? "\n" + ev.filename + ":" + ev.lineno : "");
+    });
+  </script>
+
+  <!-- Native React via CDN. No JSX / no Babel, so nothing needs transpiling. -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+
+  <script>
+    /* --------------------------------------------------------------------- *
+     * Card content (shared by every renderer)
+     * --------------------------------------------------------------------- */
+    const BODY_TEXT =
+      "This is the card body. It uses flex-grow: 1, so it expands to fill the " +
+      "available vertical space and pushes the footer to the bottom of the card.";
+
+    const RED_NOTE =
+      "Why is this text red? The root page's <style> sets " +
+      ".felt-card__body { color: red } - an app-level style that is NOT part of " +
+      "the shared felt stylesheet. It reaches the light DOM (React + the " +
+      "light-DOM web component), but it can't cross the shadow boundary - so the " +
+      "shadow-DOM card's body stays the default color.";
+
+    /* --------------------------------------------------------------------- *
+     * The shared "felt" stylesheet — two variations.
+     *
+     * Both variations style the SAME visual card. They differ only in how the
+     * web component participates in that single stylesheet.
+     * --------------------------------------------------------------------- */
+
+    // Rules that never change between strategies (BEM element classes -> real
+    // elements that exist inside the shadow tree / light tree / React tree).
+    const SHARED = `
+.felt-card__header {
+  padding: 12px 16px;
+  font-weight: 600;
+  border-bottom: 1px solid #d2d2d2;
+  background: #f5f5f5;
+}
+.felt-card__body {
+  padding: 16px;
+  flex-grow: 1;            /* <- the flex-grow the demo is about */
+  background: #eaf3ff;     /* tinted so you can see it expand     */
+  line-height: 1.5;
+}
+.felt-card__text { margin: 0 0 12px; }
+.felt-card__note { margin: 0; font-size: .8rem; font-style: italic; }
+.felt-card__footer {
+  padding: 12px 16px;
+  border-top: 1px solid #d2d2d2;
+  background: #f5f5f5;
+  font-size: .85rem;
+  color: #555;
+}`;
+
+    // The card box itself (flex column).
+    const CARD_BOX = `
+  display: flex;
+  flex-direction: column;
+  min-height: 320px;
+  border: 1px solid #d2d2d2;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .12);`;
+
+    // Strategy A: the web component renders a real `.felt-card` element (inside
+    // its shadow root, or as a light-DOM child). The custom element host is made
+    // transparent with `display: contents`, so the inner `.felt-card` is the
+    // flex item - structurally identical to the React <div class="felt-card">.
+    // The stylesheet only ever targets plain classes.
+    const CSS_A = `/* Strategy A - inner .felt-card element, transparent host */
+
+felt-card-element { display: contents; }   /* host generates no box */
+
+.felt-card {${CARD_BOX}
+}
+${SHARED}
+`;
+
+    // Strategy B: the custom element host itself IS the `.felt-card` box (it
+    // carries the class and holds header/body/footer directly - no wrapper).
+    // In light DOM the plain `.felt-card` selector matches the host; inside a
+    // shadow root the SAME rules reach the host via `:host(.felt-card)`.
+    const CSS_B = `/* Strategy B - host is the styled box */
+
+:host(.felt-card),
+.felt-card {${CARD_BOX}
+}
+${SHARED}
+`;
+
+    const CSS_TEXT = { A: CSS_A, B: CSS_B };
+
+    // Prefer constructable stylesheets (one shared object, parsed once, adopted
+    // by the document + every shadow root). Fall back to <style> injection where
+    // adoptedStyleSheets isn't available.
+    const SUPPORTS_CONSTRUCTABLE = (() => {
+      try {
+        new CSSStyleSheet();
+        return "adoptedStyleSheets" in Document.prototype;
+      } catch (e) {
+        return false;
+      }
+    })();
+
+    let SHEETS = null;
+    if (SUPPORTS_CONSTRUCTABLE) {
+      const sheetA = new CSSStyleSheet(); sheetA.replaceSync(CSS_A);
+      const sheetB = new CSSStyleSheet(); sheetB.replaceSync(CSS_B);
+      SHEETS = { A: sheetA, B: sheetB };
+    }
+
+    const CSS_FILE = { A: "felt-strategy-a.css", B: "felt-strategy-b.css" };
+
+    // ---- Delivery: how the shared stylesheet reaches the light DOM (document) ----
+    //   "adopted" -> one shared CSSStyleSheet in document.adoptedStyleSheets
+    //   "link"    -> a <link rel="stylesheet"> in <head>
+    function applyDocumentSheet(variation, delivery) {
+      const link = document.getElementById("felt-doc-link");
+      const canAdopt = delivery === "adopted" && SUPPORTS_CONSTRUCTABLE && SHEETS;
+
+      if (canAdopt) {
+        if (link) link.remove();
+        document.adoptedStyleSheets = [SHEETS[variation]];
+      } else {
+        // <link> delivery (also the fallback if adopted is unsupported)
+        document.adoptedStyleSheets = [];
+        let el = link;
+        if (!el) {
+          el = document.createElement("link");
+          el.id = "felt-doc-link";
+          el.rel = "stylesheet";
+          document.head.appendChild(el);
+        }
+        el.href = CSS_FILE[variation];
+      }
+    }
+
+    // ---- Delivery: how the shared stylesheet reaches a shadow root ----
+    //   "adopted" -> the same shared CSSStyleSheet in shadowRoot.adoptedStyleSheets
+    //   "link"    -> an inline <style> injected into the shadow root
+    // Called AFTER content is set, so the injected <style> survives replaceChildren.
+    function applyShadowSheet(root, variation, delivery) {
+      const canAdopt = delivery === "adopted" && SUPPORTS_CONSTRUCTABLE && SHEETS;
+      if (canAdopt) {
+        root.adoptedStyleSheets = [SHEETS[variation]];
+      } else {
+        root.adoptedStyleSheets = [];
+        const style = document.createElement("style");
+        style.textContent = CSS_TEXT[variation];
+        root.appendChild(style);
+      }
+    }
+
+    /* --------------------------------------------------------------------- *
+     * Tiny DOM helpers
+     * --------------------------------------------------------------------- */
+    function makeEl(tag, cls, content) {
+      const el = document.createElement(tag);
+      if (cls) el.className = cls;
+      if (typeof content === "string") el.textContent = content;
+      else if (Array.isArray(content)) content.forEach((c) => el.appendChild(c));
+      return el;
+    }
+
+    function buildParts(title, source) {
+      return [
+        makeEl("div", "felt-card__header", title),
+        makeEl("div", "felt-card__body", [
+          makeEl("p", "felt-card__text", BODY_TEXT),
+          makeEl("p", "felt-card__note", RED_NOTE),
+        ]),
+        makeEl("div", "felt-card__footer", "Footer • " + source),
+      ];
+    }
+
+    /* --------------------------------------------------------------------- *
+     * The web component. One `shadow` attribute toggles shadow vs light DOM.
+     * It reads the active strategy from window.__feltVariation and builds the
+     * appropriate internal structure.
+     * --------------------------------------------------------------------- */
+    class FeltCardElement extends HTMLElement {
+      connectedCallback() {
+        this.render();
+      }
+
+      render() {
+        const variation = window.__feltVariation || "A";
+        const delivery = window.__feltDelivery || "link";
+        const useShadow = this.getAttribute("shadow") === "true";
+        const title = this.getAttribute("card-title") || "Web component";
+        const source = useShadow ? "WC (shadow)" : "WC (light)";
+        const parts = buildParts(title, source);
+
+        let root;
+        if (useShadow) {
+          if (!this.shadowRoot) this.attachShadow({ mode: "open" });
+          root = this.shadowRoot;
+        } else {
+          root = this; // light DOM - styled by the document's adopted sheet
+        }
+
+        if (variation === "A") {
+          // Transparent host + a real inner `.felt-card` wrapper.
+          this.classList.remove("felt-card");
+          root.replaceChildren(makeEl("div", "felt-card", parts));
+        } else {
+          // Host IS the card box: give it the class, hold parts directly.
+          this.classList.add("felt-card");
+          root.replaceChildren(...parts);
+        }
+
+        // Apply styles AFTER content (an inline <style> lives among the shadow
+        // root's children and must survive the replaceChildren above).
+        if (useShadow) applyShadowSheet(root, variation, delivery);
+      }
+    }
+    customElements.define("felt-card-element", FeltCardElement);
+
+    /* --------------------------------------------------------------------- *
+     * The React component (native - not a web-component wrapper).
+     * Identical structure for both strategies; it's the reference rendering.
+     * --------------------------------------------------------------------- */
+    function FeltCardReact(props) {
+      const e = React.createElement;
+      return e(
+        "div",
+        { className: "felt-card" },
+        e("div", { className: "felt-card__header" }, props.title),
+        e(
+          "div",
+          { className: "felt-card__body" },
+          e("p", { className: "felt-card__text" }, BODY_TEXT),
+          e("p", { className: "felt-card__note" }, RED_NOTE)
+        ),
+        e("div", { className: "felt-card__footer" }, "Footer • React")
+      );
+    }
+
+    /* --------------------------------------------------------------------- *
+     * Wiring
+     * --------------------------------------------------------------------- */
+    const DESCRIPTIONS = {
+      A: {
+        summary:
+          "Strategy A - the web component renders a real .felt-card element (in the shadow " +
+          "root when shadow DOM is on, or as a light-DOM child when off), and the custom " +
+          "element host is set to display: contents so it drops out of the box tree. The " +
+          "stylesheet targets plain classes only.",
+        pros: [
+          "One plain-class stylesheet works identically in React, light DOM, and shadow DOM - no :host() needed.",
+          "The host generates no box, so the styled .felt-card is a direct flex/grid child exactly like the React DOM - layout stays consistent with zero special handling.",
+          "No specificity split: everything is a class (specificity 10), so overrides behave the same in every context.",
+          "Easy to author and maintain; no build-time selector transform required.",
+        ],
+        cons: [
+          "Requires an extra wrapper element inside the component (the real .felt-card).",
+          "Because the host has no box, consumers can't style it directly - margin, width, grid-column, background, etc. on <felt-card-element> are ignored.",
+          "display: contents has a history of accessibility bugs; keep all semantics (role, tabindex, aria-*) off the host.",
+          "The host can't be a containing block, can't clip/scroll, and can't take transforms or contain.",
+        ],
+      },
+      B: {
+        summary:
+          "Strategy B - the custom element host itself is the .felt-card box: it carries the " +
+          "class and holds the content directly, with no wrapper and no display: contents. " +
+          "Light DOM matches the plain .felt-card selector; inside a shadow root the same " +
+          "rules reach the host via :host(.felt-card).",
+        pros: [
+          "No wrapper element - the custom element IS the card, one box like React's div.",
+          "The host is a real box, so consumers can style/size/position <felt-card-element> directly (margin, width, grid placement all work).",
+          "Fewer DOM nodes per component.",
+        ],
+        cons: [
+          "Every host-targeting rule needs both .felt-card and :host(.felt-card) - duplicated selectors, or a build step to generate the twin.",
+          "Specificity mismatch: .felt-card is 10 but :host(.felt-card) is 20, so the same rule overrides differently in light vs shadow DOM (wrap in :where() to equalize).",
+          "Bare :host is unsafe in a shared/bundled sheet - it must be scoped as :host(.felt-card) or components collide.",
+          "More error-prone to author by hand.",
+        ],
+      },
+    };
+
+    function esc(s) {
+      return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function renderStrategy(v) {
+      const d = DESCRIPTIONS[v];
+      const items = (arr) => arr.map((x) => "<li>" + esc(x) + "</li>").join("");
+      document.getElementById("strategy-desc").innerHTML =
+        '<p class="summary">' + esc(d.summary) + "</p>" +
+        '<div class="pros-cons">' +
+        '<div class="pros"><h3>Pros</h3><ul>' + items(d.pros) + "</ul></div>" +
+        '<div class="cons"><h3>Cons</h3><ul>' + items(d.cons) + "</ul></div>" +
+        "</div>";
+    }
+
+    function makeWC(useShadow, title) {
+      const el = document.createElement("felt-card-element");
+      el.setAttribute("shadow", String(useShadow));
+      el.setAttribute("card-title", title);
+      return el;
+    }
+
+    function renderWebComponents() {
+      document
+        .getElementById("wc-shadow")
+        .replaceChildren(makeWC(true, "Web component (shadow)"));
+      document
+        .getElementById("wc-light")
+        .replaceChildren(makeWC(false, "Web component (light)"));
+    }
+
+    const DELIVERY_NOTE = {
+      link: (v) =>
+        'Delivery: <link rel="stylesheet" href="' + CSS_FILE[v] + '"> in <head> ' +
+        "styles the light DOM (React + the light-DOM web component). Each shadow-DOM " +
+        "card gets its own inline <style> injected into its shadow root. " +
+        "This is the typical, no-JS-plumbing setup; the tradeoff is the file is parsed once " +
+        "per shadow root and a brief FOUC is possible as each inline <style> applies.",
+      adopted: () =>
+        "Delivery: a single constructed CSSStyleSheet object is adopted into " +
+        "document.adoptedStyleSheets AND every shadow root - one shared, parsed-once " +
+        "object across all three contexts. Cheapest at runtime; requires JS to wire up." +
+        (SUPPORTS_CONSTRUCTABLE ? "" : " (Not supported in this browser - falling back to <link>/<style>.)"),
+    };
+
+    function apply() {
+      const variation = document.querySelector('input[name="variation"]:checked').value;
+      const delivery = document.querySelector('input[name="delivery"]:checked').value;
+      window.__feltVariation = variation;
+      window.__feltDelivery = delivery;
+
+      // Light DOM (React + light web component) uses the document's shared sheet.
+      applyDocumentSheet(variation, delivery);
+      // Rebuild the web components so they pick the right structure + delivery.
+      renderWebComponents();
+      // Update the informational panels.
+      document.getElementById("css-source").textContent = CSS_TEXT[variation];
+      document.getElementById("delivery-note").textContent = DELIVERY_NOTE[delivery](variation);
+      renderStrategy(variation);
+    }
+
+    // Mount React once - it restyles automatically when the document sheet swaps.
+    if (window.ReactDOM && ReactDOM.createRoot) {
+      ReactDOM.createRoot(document.getElementById("react-card")).render(
+        React.createElement(FeltCardReact, { title: "React (native)" })
+      );
+    } else {
+      document.getElementById("react-card").textContent =
+        "React failed to load (are you offline? the CDN is blocked?).";
+    }
+
+    // Hook up both toggles.
+    document
+      .querySelectorAll('input[name="variation"], input[name="delivery"]')
+      .forEach((input) => input.addEventListener("change", apply));
+
+    // Initial paint.
+    apply();
+  </script>
+</body>
+</html>
